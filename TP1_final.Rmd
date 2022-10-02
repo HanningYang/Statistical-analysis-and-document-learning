@@ -1,0 +1,544 @@
+---
+title: "Statistical Analysis and Document Mining TP1"
+author: "Hanning Yang, Niloufar Zarghampour"
+output: html_document
+---
+## Part 1: Multiple regression on simulated data
+#### 1. Set the  seed of the random generator to 0 (set.seed(0)). Simulate 6, 000 × 201 = 1, 206, 000 independent random variables with the standard normal distribution. Store them into a matrix, then into a data frame with 6,000 lines and 201 columns.
+
+
+```{r}
+set.seed(0)
+x <- rnorm(6000*201)
+x <- matrix(x, nrow = 6000, ncol = 201, byrow = TRUE)
+x <- data.frame(x)
+```
+#### 2. Define a Gaussian multiple linear regression model using the last 200 variables to predict the first one. 
+The mathematical equation of this model is as below: 
+$$
+X_1 = \beta_1 + \sum^{201}_{i=2} \beta_i X_i, \qquad
+X_i \sim \mathcal{N}(0,1) 
+$$
+```{r}
+reg = lm(X1~., data = x)
+summary(reg)
+
+```
+#### 3. Estimate the parameters of the linear model using the last 200 variables to predict the first one. Compute the number of coefficients assessed as significantly non-zero at level 5%. 
+```{r}
+summary(reg)$coefficients
+confint(reg, level = 0.95)
+
+```
+We are using $\alpha = 0.05$ to determine which predictors are significant in this regression model. As we can see from the generated result, most of the predictors are statistically insignificant. Multiple R-Squared tells us the proportion of the variance in the response variable that can be explained by the predictor variables. The closer it is to 1, the better the predictor variables are able to predict the value of the response variable. However, in our example, the value equals to 0.03717. Thus, the predictors cannot predict the response value well. Moreover, p-value is greatly larger than 0.05. Hence, we can conclude that the predictor variables are notuseful for predicting the value of the response variable.
+
+
+#### 4. Simulate a sample of size n = 1000 of the following model:
+$$
+X_{1,i} = \epsilon_{1,i} \\
+X_{2,i} = 3X_{1,i} + \epsilon_{2,i} \\
+Y_i = X_{2,i} + X_{1,i} + 2 + \epsilon_{3,i} 
+$$
+```{r}
+n <- 1000
+x1 <- rnorm(n)
+x2 <- 3*x1 + rnorm(n)
+y <- x2 + x1 + 2 + rnorm(n)
+df2 <- data.frame(x1,x2,y)
+lm2 <- lm(y~.,data=df2)
+summary(lm2)
+plot(x1,x2)
+```
+\
+Both of $X_{1,i}$ and $X_{2,i}$ have normal distribution. 
+$$
+X_{1,i} \sim N(0,1) \qquad X_{2,i} \sim N(0,10)
+$$
+The shape of the clouds of points of the simulated values of $(X_{1,i}, X_{2,i})$ is ellipse. This is expected from the fact that the formula for the density function is a quadratic form in the variables. It is also seen in the plot that the center of the point cloud is quite close to the true means of the variables, namely 0. 
+
+
+#### 5. Let us consider the following 2 models:
+Model 1:
+$Y_i = \beta_1 X_{1,i} + \beta_0 + \tilde{\epsilon}_{1,i}$ 
+\
+
+Model 2: 
+$Y_i = \beta_2 X_{2,i} + \beta_0 + \tilde{\epsilon}_{2,i}$
+\
+where $i ∈ {1, . . . , n}$ and the $\epsilon_i$ are independent  N (0,$\sigma^2$)  random variables. 
+
+```{r}
+df3 <- data.frame(x1,y)
+df4 <- data.frame(x2,y)
+lm3 <- lm(y~x1,data = df3)
+lm4 <- lm(y~x2,data = df4)
+summary(lm3)
+summary(lm4)
+```
+Based on the proposition of normal distribution, we know Y also has normal distribution.\
+In model 1:
+$$
+Y_i = X_{1,i}+X_{2,i}+2+\epsilon_{3,i} = 4X_{1,i}+2+\epsilon_{2,i}+\epsilon_{3,i}
+$$
+And we know $\epsilon_{j,i}$ where $j = 2,3$ admits standard normal distribution.
+Therefore, we can deduce $\beta_0$ = 2, $\beta_1$ = 4 and $\sigma^2$
+ = 2. \
+In model 2:
+$$
+Y_i = X_{1,i}+X_{2,i}+2+\epsilon_{3,i} = \frac{4}{3}X_{2,i}+2+\epsilon_{3,i}-\frac{1}{3}\epsilon_{2,i}
+$$
+Therefore, we can deduce $\beta_0$ = 2, $\beta_2$ = $\frac{4}{3}$ and $\sigma^2$
+ = $\frac{10}{9}$. \
+From the output, it proves they are close to the value. \
+ \
+Now set the seed to 3 and simulate again $X_{1,i}, X_{2,i}, Y_i$ for n = 10. Estimate the parameters. 
+
+```{r}
+set.seed(3)
+n <- 10
+x1 <- rnorm(n)
+x2 <- 3*x1 + rnorm(n)
+y <- x2 + x1 + 2 + rnorm(n)
+df5 <- data.frame(x1,x2,y)
+lm5 <- lm(y~.,data=df5)
+summary(lm5)
+plot(x1,x2)
+```
+```{r}
+lm6 <- lm(y~x1,data.frame(x1,y))
+lm7 <- lm(y~x2,data.frame(x2,y))
+summary(lm6)
+summary(lm7)
+```
+When we decrease the number of training data, the estimations are deviated from the true value.
+
+
+#### 6. Let us now consider the model: 
+$$
+Y_i = \beta_2X_{2,i} + \beta_1X_{1,i} + \beta_0 + \epsilon_i
+$$
+where $i ∈ {1, . . . , n}$ and the $\epsilon_i$ are independent N (0, $\sigma_2$) random variables. For the previously simulated data with n = 10, estimate the parameters $\beta_0, \beta_1, \beta_2, \sigma_2$.
+
+```{r}
+lm8 <- lm(y~x1+x2, data.frame(x1,x2,y))
+summary(lm8)
+```
+From distribution of Y, we can estimate the values of $\beta_0$, $\beta_1$, $\beta_2$, $\sigma^2$. They are 2, 1, 1 ,1 respectively. The results are close to the  true values. We can deduce $X_1$ and $X_2$ are highly correlated. Also, we can see from the result that p-value is far lower than 0.05, which indicates that the predictor variables are actually useful for predicting the value of the response variable and the regression model fits the data better than a model with only one predictor.
+
+## Part 2: Analysis of prostate cancer data
+### 1. Preliminary analysis of the data
+#### (a) Read the data
+
+```{r}
+prostateCancer <- read.table("./prostate.data", header=T)
+attach(prostateCancer)
+prostateCancer$lcavol  <- scale( lcavol ) 
+prostateCancer$lweight <- scale( lweight ) 
+prostateCancer$age     <- scale( age ) 
+prostateCancer$lbph    <- scale( lbph ) 
+prostateCancer$svi     <- scale( svi ) 
+prostateCancer$lcp     <- scale( lcp ) 
+prostateCancer$pgg45   <- scale( pgg45 ) 
+prostateCancer$gleason <- scale( gleason ) 
+prostateCancer = data.frame(prostateCancer)
+pro <- prostateCancer[,-10]
+summary(pro)
+
+```
+
+#### (b) Analyse the correlations between all the variables and identify the variables which are the most correlated to lcavol.
+```{r}
+pairs(pro)
+#corre <- cor( prostateCancer[1:7] ) 
+
+pro.cor = cor(pro)
+# looking for the strongest correlation with lcavol :
+# first , rounding each cor value to 3 digits then sorting is performed
+round(pro.cor,3) 
+pro.cor = pro.cor[1,]
+pro.cor[upper.tri(pro.cor,diag=T)] = 0
+pro.cor.sorted = sort(abs(pro.cor),decreasing=T)
+
+#finding the column names with the highest correlation
+k = which(pro.cor == pro.cor.sorted[1])
+print(paste("The first highest correlation with lcoval is with the variable ",colnames(pro)[k], " and the value of that correlation is ",pro.cor.sorted[1] ))
+
+```
+From the correlation values, we obtained that svi, lcp and lpsa are the
+most correlated to lcavol.
+```{r}
+```
+### 2. Linear regression
+#### (a) Perform a multiple linear regression to build a predictive model for the lcavol variable.
+```{r}
+pro$gleason<-factor(pro$gleason)
+pro$svi<-factor(pro$svi) 
+pro$gleason
+pro$svi
+regression=lm(prostateCancer$lcavol~prostateCancer$lweight+prostateCancer$age+prostateCancer$lbph+prostateCancer$svi+prostateCancer$lcp+prostateCancer$gleason+prostateCancer$pgg45+prostateCancer$lpsa)
+summary(regression)
+
+```
+
+Let's define $X_1=lweight,X_2=age,X_3=lbph,X_4=lcp,X_5=pgg45,X_6=lpsa$. The mathematical equation of the regression model is as below :
+
+$$
+lcavol=\sum_{j=1}^{6}\beta_{j}X_{j,i}+\sum_{j = 1}^{3}\beta_{gleason_{j}}X_{gleason_{j,i}}+\beta_{svi}X_{svi_{j,i}}+\beta_0+\epsilon_i \quad where \quad i \in \{1,...,97\}
+
+$$
+Also, the coefficients of lcp and lpsa are relatively high, which corresponds to our conclusion that lcavol has  strong relationships with lcp and lpsa.
+```{r}
+```
+#### (b) Give confidence intervals of level 95% for all the coefficients of the predictors。
+```{r}
+confint(regression, level = 0.95)
+
+```
+From the result, we can conclude that lwight, age and lbph have weak relation with lcavol, which corresponds to the correlation values we got in 1.b above.
+```{r}
+```
+#### (c) Relate the answer to the p-value of a test and a confidence interval.
+
+The p-value of lpsa is far lower than 0.05. Thus, lcavol and lpsa are highly correlated. 
+
+#### (d) Plot the predicted values of lcavol as a function of the actual values. Plot the histogram of residuals. 
+```{r}
+Y_predict <- predict( regression)
+plot(Y_predict)
+resi =  pro$lcavol - Y_predict
+hist(resi)
+rss = 0
+for (i in length(resi)) {
+  rss = rss + (prostateCancer$lcavol[i] - Y_predict[i])*(prostateCancer$lcavol[i] - Y_predict[i])
+}
+print(rss)
+
+```
+From the histogram of residuals, it is close to normal distribution. But we cannot conclude it admits normal distribution directly.
+```{r}
+```
+#### (e) What do you think of the optimality of this model?
+```{r}
+sum((regression$residuals)^2)
+
+```
+In terms of the value of RSS, we can think the model doesn't fit well because it is quite high.
+```{r}
+```
+#### (f) What happens if predictors lpsa and lcp are removed from the model?
+```{r}
+prostate_sub <- subset(pro, select = -c(lpsa, lcp))
+lm_remove <- lm(formula = prostateCancer$lcavol~., data = prostate_sub)
+summary(lm_remove)
+plot(predict(lm_remove))
+```
+\
+When predictors lpsa and lcp are removed from the model, there is nearly no linearity between lcavol and the remaining predictors. That is due to the conclusion we got above that svi, lpsa and lcp are the most correlated with lcavol. Moreover, we can tell p-value of svi is quite low. 
+```{r}
+```
+### 2. Best subset selection
+#### (a) Describe the models implemented in
+$$
+lm(lcavol ∼ 1, data=pro) \\
+lm(lcavol ∼ ., data=pro[,c(1,4,9)])\\
+lm(lcavol ∼ ., data=pro[,c(1,2,9)])
+$$
+Compute their residual sums of squares.
+```{r}
+lm1 = lm(lcavol~1, data=pro)
+lm2 = lm(lcavol~., data=pro[,c(1,4,9)])
+lm3 = lm(lcavol~., data=pro[,c(1,2,9)])
+lm1_predict <- predict(lm1)
+plot(lm1_predict)
+resi1 =  pro$lcavol - lm1_predict
+hist(resi1)
+print(sum(resi1)*sum(resi1))
+lm2_predict <- predict(lm2)
+plot(lm2_predict)
+resi2 =  pro$lcavol - lm2_predict
+hist(resi2)
+print(sum(resi2)*sum(resi2))
+lm3_predict <- predict(lm3)
+plot(lm3_predict)
+resi3 =  pro$lcavol - lm3_predict
+hist(resi3)
+print(sum(resi3)*sum(resi3))
+
+
+
+```
+
+#### (b) Compute the residual sums of squares for all models of size k = 2.
+```{r}
+sub = combn(8,2)
+
+for ( i in 1:28){
+  set = c(1, sub[1,i]+1, sub[2,i]+1)
+  fit = lm(lcavol ~.,data=pro[,set])
+  print(set) 
+  print(sum(residuals(fit)^2))
+}
+
+```
+### What is the best choice of 2 predictors among 8?
+The least RSS belongs to the combination of predictors 6 and 9 : Icp and Ipsa  with the value of 34.03367
+
+### (c) select the set of predictors that minimizes the residual sum of squares. Plot the residual sum of squares as a function of k.
+
+```{r}
+min_rss <- 1:8
+lowest <- list()
+for (j in 1:8) {
+  set1 = combn(8,j)
+  rss <- 1:length(set1[1,])
+  for (i in 1:length(set1[1,])) {
+    vect = c(1,set1[,i]+1);
+    
+    fit2 = lm(lcavol ~ ., data=pro[,vect])
+    rss[i] = sum(residuals(fit2)^2)
+  }
+  min_rss[j] = min(rss)
+  lowest[j] = list(set1[,which.min(rss)]+1)
+}
+fit3 = lm(lcavol ~ 1, data=pro)
+min_rss = c(sum(residuals(fit3)^2),min_rss)
+
+plot(0:8,min_rss,type = "b",main ="RSS",xlab = "Number of predictors")
+
+```
+
+
+### The list of predictors minimalizing the RSS for each size of the regression model
+```{r}
+for (i in 1:8){
+  print(paste("Number of predictors: ",i,". Predictors minimalizing RSS: ",lowest[i]))
+}
+
+```
+### (d) Do you think that minimizing the residual sum of squares is well suited to select the optimal size for the regression models? Could you suggest another possibility?
+Minimizing the RSS is not the best factor for choosing the optimal regression. As seen in the example, RSS decreases when the size of the model increases, so it's like we are always choosing the maximum possible size. One method could be to do anova test of this 8 models 2 by 2, and then conclude.
+```{r}
+```
+### 4. SPLIT-VALIDATION
+#### Give a brief overview of split-validation: how it works? Why it is not subject to the same issues raised in question 3(c)
+
+The split-validation method is used to overcome this issue:
+
+Assuming we correctly separated the dataset into a training set and a test set, and fitted the model with the training set while evaluated with the test set, we obtained only a single sample point of evaluation with one test set. How can we be sure it is an accurate evaluation, rather than a value too low or too high by chance? If we have two models, and found that one model is better than another based on the evaluation, how can we know this is also not by chance?
+The reason we are concerned about this, is to avoid surprisingly low accuracy when the model is deployed and used on an entirely new data than the one we obtained, in the future.
+On the other hand,the model that just memorizes every training dataset and returns the previous y value as before would have 0 error on its training data. Cross validation like this lowers the accuracy of  models for memorizing the peculiarities in the training data, thus reducing the types of effects from section 3.
+
+The workflow of how this process works is as below :
+
+step 0 : choosing random ( or non random) data for the training dataset\
+step 1 : training dataset is used to train a few candidate models\
+step 2 : validation dataset is used to evaluate the candidate models\
+step 3 : one of the candidates is chosen\
+step 4 : the chosen model is trained with a new training dataset\
+step 5 : the trained model is evaluated with the test dataset
+```{r}
+```
+### 4. (b) 
+For this Model size of 2, we will use the variables 6 and 9 as mentioned before. let's call this model $ M_2 $ for further references. 
+The function metric, calculates the variance of residuals for the training dataset
+and afterwards the regression takes place. 
+```{r}
+metric = function(fit, validation=F) {
+  if (validation) {
+    z = var(predict.lm(fit, pro[!!valid, ]) - pro[!!valid, 1])
+  }
+  else {
+    z = var(predict.lm(fit, pro[!valid, ]) - pro[!valid, 1])
+  }
+  z
+}
+
+N = length(pro[,1])
+valid = (1:N %% 3) == 0
+fit = lm(lcavol ~ ., pro[!valid, c(1,6,9)])
+summary(fit)
+metric(fit)
+metric(fit, validation = TRUE)
+
+```
+The summary above is the for the mentioned model, as well as the variance of residuals for the training and validation dataset.
+```{r}
+```
+### (c) & (d)
+
+For the next section, this Process is repeated for all the models, first for non random data selection and then for the random data selection. 
+
+```{r}
+N = length(pro[,1])
+valid = (1:N %% 3) == 0
+
+
+M = 7
+res_training = 0:M
+res_valid = 0:M
+fit = lm(lcavol ~ 1, pro[!valid, ])
+
+
+res_training[1] = metric(fit)
+res_valid[1] = metric(fit, T)
+best_indices = 1:M
+
+for (k in 1:(M+1)) {
+  combos = combn(1:(M+1),k)
+  best_val = Inf
+  best_ind = 1
+  for (i in 1:length(combos[1,])) {
+    fit = lm(formula = lcavol ~ ., pro[!valid,append(c(1),combos[,i]+1)])
+    if (metric(fit) < best_val) {
+      best_val = metric(fit)
+      best_ind = i
+    }
+  }
+best_indices[k] = best_ind
+  res_training[k] = best_val
+  fit = lm(formula = lcavol ~ ., pro[!valid,append(c(1),combos[,best_ind]+1)])
+  res_valid[k] = metric(fit, T)
+}
+
+plot(1:(M+1), res_training, col="red", type = "b",main ="Error for non-random validation ",ylab = "Variance of residuals", xlab = "Number of predictors", ylim=c(0.3, 1.1))
+lines(1:(M+1), res_valid, type = "b",col="blue")
+legend("topright", c("training","validation"), fill=c("red","blue"))
+
+```
+As can be seen from the figure above, this model fit can be considered as a "good fit" since the validation error is somehow low and slightly higher than the training error
+
+
+```{r}
+N = length(pro[,1])
+#valid = (1:N %% 3) == 0
+valid = 1:N
+for (i in 1:N) {valid[i] = F}
+valid[sample(N, N/3)] = T
+
+M = 7
+residuals_training = 0:M
+residuals_valid = 0:M
+fit = lm(lcavol ~ 1, pro[!valid, ])
+
+
+residuals_training[1] = metric(fit)
+residuals_valid[1] = metric(fit, T)
+best_indices = 1:M
+for (k in 1:(M+1)) {
+  combos = combn(1:(M+1),k)
+  best_val = Inf
+  best_ind = 1
+  for (i in 1:length(combos[1,])) {
+    fit = lm(formula = lcavol ~ ., pro[!valid,append(c(1),combos[,i]+1)])
+    if (metric(fit) < best_val) {
+      best_val = metric(fit)
+      best_ind = i
+    }
+  }
+  best_indices[k] = best_ind
+  residuals_training[k] = best_val
+  fit = lm(formula = lcavol ~ ., pro[!valid,append(c(1),combos[,best_ind]+1)])
+  residuals_valid[k] = metric(fit, T)
+}
+
+plot(1:(M+1), residuals_training, col="red", type = "b",main ="Error for random validation",ylab = "Variance of residuals", xlab = "Number of predictors", ylim=c(0.3, 1.1))
+lines(1:(M+1), residuals_valid, type = "b",col="blue")
+legend("topright", c("training","validation"), fill=c("red","blue"))
+
+```
+Note: for some random selections, there might be an error, if so, please run the cell again
+
+As can be seen from the figure above, from each run, we get different model fits , some can be considered a good fit and some are not. This shows the importance of choosing the validation set. which could be a potential drawback. 
+
+### (e) What is the main limitation with split- validation
+
+So far, the limitation that we have observed, was on the data selection of the validation dataset. However, one other limitation that this method could have is that if we have a data set that is too small to be divided into these 3 sections. 
+First of, if the training dataset is too small, the model will not have enough data to learn. On the other hand, if the validation set is too small, then the evaluation metrics like accuracy, precision, recall, and F1 score will have large variance and will not lead to the proper tuning of the model.
+
+to compensate for this method, we could perform the k-fold cross validation. 
+
+In this method we shuffle the data set and then split it in to K equal parts. We now reserve the first part for testing and train model on rest of K-1 parts.  After training, we then test model on first part that we had reserved and note the accuracy.
+Again in next iteration we now leave the second part for testing and train model on rest of data. We then test model on second part and note the accuracy.
+We carry out this process till we have done K iteration and have K accuracy score for each iteration.
+
+### implementing K-fold Cross validation
+```{r}
+library("glmnet")
+library("pls")
+
+cv.k.fold = function(formula = lpsa ~ .,data,name,bestlam = 0, k){
+  library(glmnet)
+  library (pls)
+  set.seed(1)
+  # formula = as.formula(str.formula)
+  
+  length = nrow(data)
+  size.fold = floor(length / k)
+  index = seq(1,length)
+  trunc_index = index
+  # acc_error = vector("numeric",length = k)
+  acc_error = 0
+  for (i in 1:k){
+    # Get length(data) / 10 random number in index
+    sample = sample(trunc_index,size.fold,replace = F)
+    # validation set: those data whose index obtained from sampling
+    validation = data[sample,]
+    
+    # train set: the remaining data
+    train = data[which(! index %in% sample),]
+    
+    # train data and predict model with validation set.
+    # fit = 0
+    # fit.pred = predict(model,validation)
+    # if (name == "lm"){
+    #   
+    # }
+    if (name == "glm"){
+      fit = glm(formula, data=train)
+      fit.pred = predict(fit, s = bestlam, newdata = validation)
+    }
+    
+    x = model.matrix(formula, train)[, -1]
+    y = train$lpsa
+    x.val = model.matrix(formula, validation)[, -1]
+    
+    if (name == "ridge"){
+      fit = glmnet(x,y,alpha = 0,lambda = bestlam)
+      fit.pred = predict(fit, s = bestlam, newx = x.val)
+    }
+    if (name == "lasso"){
+      fit = glmnet(x,y,alpha = 1,lambda = bestlam)
+      fit.pred = predict(fit, s = bestlam, newx = x.val)
+    }
+    if (name == "pcr"){
+      fit = pcr(formula, data = train , scale =TRUE ,validation ="CV")
+      fit.pred = predict(fit ,x.val, ncomp = bestlam)
+    }
+    if (name == "pls"){
+      fit = plsr(formula, data = train , scale =TRUE ,validation ="CV")
+      fit.pred = predict(fit ,x.val, ncomp = bestlam)
+    }
+    
+    
+    acc_error = acc_error + mean((fit.pred - validation[, 9])^2)
+    
+    
+    # truncate index
+    trunc_index = trunc_index[! trunc_index %in% sample]
+  }
+  
+  MSE = acc_error / k
+  return(MSE)
+}
+
+# Fit a linear model with all predictors using the usual least squares
+
+model.LQ = lm(lcavol ~ .,pro)
+summary(model.LQ)
+
+# Estimate the test error using 10-fold cross validation
+#err.LQ = cv.k.fold(data = pro,name = "pcr",k=10)
+#err.LQ
+```
+### Conclusion 
+From the figures and errors, the conclusion is that the $M_2$ model is best, due to its simplicity. Even though other models have low validation error, $M_2$ is the smallest model that could give near optimal power. This model allows us to estimate lcavol directly via a simple formula that is easily interpretative. In addition, data collection is easier when there are far fewer measurements. 
