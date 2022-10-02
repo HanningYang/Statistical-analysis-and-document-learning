@@ -1,0 +1,203 @@
+---
+title:'TP4: Graph mining and Community Detection'
+author: "Hanning Yang, Niloufar Zarghampour"
+date: '2022-04-11'
+output: html_document
+---
+
+## 1 Import and first explorations
+```{r,include = FALSE}
+library (igraph)
+dat <- read.table("lesmis.txt", header = FALSE , sep = "\t")
+misgraph <- simplify ( graph.data.frame( dat , directed = FALSE ))
+```
+
+```{r,fig.align='center'}
+plot.igraph(
+  misgraph, layout = layout_with_fr(misgraph), vertex.color = "red", vertex.frame.color = "yellow", vertex.shape = "circle", vertex.size = 3, vertex.label.font = 1, vertex.label.cex = 0.5, vertex.label.dist = 0.5, vertex.label.degree = -pi/2, vertex.label.color = "black", edge.color = "black", edge.curved = TRUE,edge.width = 0.2
+,main = "Network Visualization of the data")
+
+```
+```{r}
+```
+### (a)
+There are different ways for us to layout the graph. Layout randomly places the vertices uniform randomly on a plane. Layout in circle places the vertices uniformly on a circle, in the order of vertex ids. What we used here is forced-directed layout. The default function is called the Frunchterman-Reingold algorithm. Typically, force-directed algorithms use a physical simulation where some kind of attractive force (imagine a spring) are used to attract nodes connected by edges together. So ‘tightly’ connected clusters of nodes will show up close to each other, and those that are ‘loosely’ connected will be repulsed towards the outside. However, the algorithm does not specify where any node has to be other than these constraints. 
+```{r}
+gsize(misgraph)
+gorder(misgraph)
+edge_density(misgraph)
+diameter(misgraph, weights = NA)
+
+```
+This is undirected graph. The size is 254, order is 77. The density of the graph is 0.08680793 and the diameter of the graph is 5. This graph is not complete since the number of edges is not equal to that of vertex*(vertex-1)/2.
+
+```{r,fig.align='center'}
+set.seed(3)
+V( misgraph )$label.cex <- ( degree ( misgraph )+10) / max ( degree ( misgraph ))
+l <- layout_with_fr( misgraph )
+plot.igraph(
+  misgraph ,layout = layout_with_fr(misgraph), vertex.color = "red", vertex.frame.color = "yellow", vertex.shape = "circle", vertex.size = 3, vertex.label.font = 1, vertex.label.dist = 0.5, vertex.label.degree = -pi/2, vertex.label.color = "black", edge.color = "black", edge.curved = TRUE,edge.width = 0.2,main = " scaled version of the network based on the degree of each node"
+)
+```
+
+```{r}
+```
+This code is to adjust the label size based on the degree of each vertex so that it is easy to see who are the leading characters in this book and Jean Valjean has the most connections. Apart from that, from the vertex with relatively larger character names and some cluster, we can detect some communities by eyes.
+
+## 2 Community detection
+### (a)
+1. Preparing the data\
+2. Computing (dis)similarity information between every pair of objects in the data set.\
+3. Using linkage function to group objects into hierarchical cluster tree, based on the distance information generated at step 1. Objects/clusters that are in close proximity are linked together using the linkage function.\
+4. Determining where to cut the hierarchical tree into clusters. This creates a partition of the data.
+### (b)
+```{r, include = FALSE}
+library("ggplot2")
+library("ggdendro")
+similarity(misgraph)
+d <- as.dist(1-similarity(misgraph))
+mishclust <- hclust(d, method = "complete")
+```
+
+```{r,fig.align='center'}
+plot(mishclust, hang = -1, cex = 0.6, main = " HAC Cluster dendrogram with complete method", ylab = NULL, sub = NULL)
+
+```
+
+```{r}
+```
+### (c)
+```{r,fig.align='center'}
+mod = c()
+for (i in 1:10)
+{
+  labels = cutree(mishclust, i)
+  mod[i] = modularity (x= misgraph , membership = labels )
+}
+plot (mod, type ="l",main =" Modularity for HAC")
+```
+
+```{r}
+```
+### (d)
+```{r,fig.align='center'}
+labels = cutree(mishclust, 9)
+V(misgraph)$color = labels
+
+plot.igraph(
+  misgraph, layout = layout_with_fr(misgraph),  vertex.frame.color = "white", vertex.shape = "circle", vertex.size = 3, vertex.label.font = 1,  vertex.label.dist = 0.5, vertex.label.degree = -pi/2, vertex.label.color = "black", edge.color = "black", edge.curved = TRUE,edge.width = 0.2, main = " HAC detection network"
+)
+```
+
+```{r}
+```
+
+From the plot, we think there are some problems with the community detection. Apparently, this story unfolded from Jean Valjean. However, some characters around Jean Valjean are detected in one community. Also, some characters on the margins who don't have direct connection are detected into a community.
+
+### (e)
+```{r,fig.align='center'}
+plot(mishclust,label=V(misgraph)$name, hang = -1, cex = 0.6, main = " HAC Cluster dendrogram after the number of communities are detected", ylab = NULL, sub = NULL)
+```
+
+```{r}
+```
+
+### (f)
+```{r,fig.align='center'}
+mishclust <- hclust(d, method = "average")
+plot(mishclust,label=V(misgraph)$name, hang = -1, cex = 0.6, main = "HAC Cluster dendrogram with average method", ylab = NULL, sub = NULL)
+mod = c()
+for (i in 1:10)
+{
+  labels = cutree(mishclust, i)
+  mod[i] = modularity (x= misgraph , membership = labels )
+}
+plot (mod, type ="l",main =" Modularity for HAC")
+labels = cutree(mishclust, 7)
+V(misgraph)$color = labels
+
+plot.igraph(
+  misgraph, layout = layout_with_fr(misgraph),  vertex.frame.color = "white", vertex.shape = "circle", vertex.size = 3, vertex.label.font = 1,  vertex.label.dist = 0.5, vertex.label.degree = -pi/2, vertex.label.color = "black", edge.color = "black", edge.curved = TRUE,edge.width = 0.2
+)
+```
+
+```{r ,fig.align='center'}
+mishclust <- hclust(d, method = "single")
+plot(mishclust,label=V(misgraph)$name, hang = -1, cex = 0.6, main = "Cluster dendrogram", ylab = NULL, sub = NULL)
+mod = c()
+for (i in 1:10)
+{
+  labels = cutree(mishclust, i)
+  mod[i] = modularity (x= misgraph , membership = labels )
+}
+plot (mod, type ="l",main =" Modularity for HAC")
+labels = cutree(mishclust, 9)
+V(misgraph)$color = labels
+
+plot.igraph(
+  misgraph, layout = layout_with_fr(misgraph),  vertex.frame.color = "white", vertex.shape = "circle", vertex.size = 3, vertex.label.font = 1,  vertex.label.dist = 0.5, vertex.label.degree = -pi/2, vertex.label.color = "black", edge.color = "black", edge.curved = TRUE,edge.width = 0.2
+)
+```
+After comparison, average gives better result. We give different number of communities for different methods. 7 is for average and 9 single. When we use single method, multiple single vertex are detected as a community alone, especially BishopCharles and there are a lot of connections around him, which is absurd. While using average methods, the clusters make more sense. There are more connections within one community.
+## 2.2 Edge betweenness
+### (a) 
+Edge betweenness is a centrality measure for edges in a network. It can  be used to partition the nodes in a network into communities because edges with high betweenness are usually bridges between densely connected clusters of nodes. Hence, we iteratively find and remove the edge with largest betweenness to divide a network into a hierarchy of nested communities.\
+( Betweenness centrality is a way of detecting the amount of influence a node has over the flow of information in a graph. It is often used to find nodes that serve as a bridge from one part of a graph to another.)
+
+### (b) 
+
+```{r,fig.align='center'}
+mis_edgeb = cluster_edge_betweenness(misgraph)
+plot(as.dendrogram(mis_edgeb), main = "Dendrogram of the Edge Betweenness")
+print(mis_edgeb)
+```
+
+### (c)
+
+```{r echo=FALSE,fig.align='center'}
+f <- function (i ){
+mis_graph2 = delete.edges(misgraph ,
+mis_edgeb$removed.edges[seq(length =i)])
+cl = clusters(mis_graph2)$membership
+modularity(misgraph,cl)
+}
+mods = sapply (0: ecount(misgraph),f)
+mis_graph2 <- delete.edges(misgraph ,
+mis_edgeb$removed.edges[seq(length=which.max(mods)-1)])
+plot.igraph(
+  mis_graph2, layout = layout_with_fr(mis_graph2),  vertex.frame.color = "white", vertex.shape = "circle", vertex.size = 3, vertex.label.font = 1,  vertex.label.dist = 0.5, vertex.label.degree = -pi/2, vertex.label.color = "black", edge.color = "black", edge.curved = TRUE,edge.width = 0.2,main="Representation of Edge betweenness Communities"
+)
+```
+We observed that the edges between communities are cut off. It is easier for us to see the reslut. The code is to delete the edge with high betweenness value and it stops when it reach the the number of communities with highest modularity value.
+
+
+```{r echo=FALSE,fig.align='center'}
+plot(mis_graph2,main=" Another visualization of Edge Betweenness Clustering")
+```
+From the plot, we can see that this code cuts the edges connecting the communities determined by the edge betweenness. This makes the different communities disconnected in the graph.
+
+## 2.3 Spectral clustering and the Louvain algorithm
+### The Louvain algorithm
+```{r echo=FALSE,fig.align='center'}
+misLouvain = cluster_louvain(misgraph)
+print(misLouvain)
+plot(misLouvain,misgraph, main="Louvain Clustering")
+
+```
+Six communities are detected using Louvain algorithm.
+
+### Leading eigen algorithm
+```{r echo=FALSE,fig.align='center'}
+misLeadingeigen = cluster_leading_eigen(misgraph)
+print(misLeadingeigen)
+plot(misLeadingeigen,misgraph,main="Leading Eigen clustering")
+
+```
+Eight communities are detected using eigen clustering.
+
+## 2.4 Conclusion
+Overall, we concluded that edge betweenness algorithm outperforms dramatically in the sense of detecting the number communities, because from the plots we can see that the overlap is minimized. However, we lose the connection among the communities. In the louvain algorithm, we can still detect how many communities there are easily ( but not as easily as in the edge betweenness) and see the relations between each community. Furthermore, in the leading Eigen clustering we have obvious overlapping between clusters. \
+
+As for the outliers, we can not see any outliers in Louvain algorithm, which is its drawback in case of anamoly detection. However, the outliers are visible in the edge betweenness. But in the Leading Eigen clustering, even though the outliers can be detected , the density of the overlapp is too much to be noticed. Moreover, HAC has the worst performance.
+
+
