@@ -1,0 +1,354 @@
+---
+title: 'TP3: Classification with genetic markers'
+author: "Hanning Yang, Niloufar Zarghampour"
+date: "3/12/2022"
+output: html_document
+---
+
+## 1. Data
+```{r}
+set.seed(0)
+NAm2 = read.table("NAm2.txt",header=TRUE)
+cont <- function (x){
+if(x %in% c("Canada"))
+  cont<-"NorthAmerica"
+else if( x %in% c("Guatemala", "Mexico", "Panama", "CostaRica"))
+  cont <-"CentralAmerica"
+else
+  cont <-"SouthAmerica"
+return ( factor ( cont ))
+}
+contID <- sapply(as.character(NAm2 [ ,4]) , FUN = cont )
+```
+
+
+## 2. Multinomial regression
+The function, "multinom" fits multinomial log-linear models via neural networks.\
+In a nutshell, this allows us to predict a factor of multiple levels (more than two) in one shot with the power of neural networks. Neural networks are great at working through multiple combinations and also great with linear models, so it’s an ideal combination.\
+
+### (a)
+```{r,include = FALSE}
+library("nnet")
+NAcont <- cbind ( contID = contID , NAm2 [ , -(1:8)])
+NAcont [ ,1] <- factor ( NAcont [ ,1])
+
+regression <- multinom(NAcont$contID~., data = NAcont, MaxNWts = 18000, maxit = 200)
+#summary(regression)
+```
+From the R-documentation for the "nnet" package, we can see that the MaxNWts account for the maximum allowable number of weights, which is set to 1000 if we do not pass the argument. However, we have 17133 weights, which is greater than the allowed number of weights, hence we need to increase this number to match out model. Here, 17133 is rounded up to 18000. \
+Also, Maxit is the  maximum number of iterations,which is initially set to 100. We want this value to bet set in a way to make sure we find the lowest possible error level is reached (i.e. global minimum). Here, after 200 iterations, we can see the word "Converged". This means the model reaches the lowest error or global minimal and therefore is the best fit. 
+
+### (b)
+```{r}
+pca = prcomp(NAcont[,-c(1)], scale = F)
+reg = multinom(NAcont$contID~pca$x,MaxNWts = 1500, maxit = 200)
+#xtabs(~predict(reg)+NAcont$contID, data = NAcont)
+tab3 <- table(predict(reg), NAcont$contID)
+err = 1-round((sum(diag(tab3))/sum(tab3)),2)
+print(err)
+
+```
+As we can see from the table, the result is promising (the error is zero) since we only have positive values in the diagonal, other than diagonal they are all zeros. Obviously, it is because we use the maximal number of principal components as predictors. Meaning that the model has basically memorized the data given.
+ 
+
+### (c)
+In this part, we will define a strategy that will be used throughout this lab with different classifiers. First, we will compute the 10-fold cross validation, using all the principal components, afterwards, from the error plot given, we will decide on which interval of x ( number of principal components) is sufficient for the overall cross validation calculations. The aim is to keep the least amount of principle components that give the lowest error rate , but also not lose any vital information. And from the last plot we will decide on the number of optimal principle components.
+
+```{r, include=FALSE}
+
+set.seed(3)
+labels = rep (1:10 , each =50)
+set = sample(labels ,494)
+
+nacont = cbind(contID=NAcont[,c(1)], pca$x)
+nacont = data.frame(nacont)
+naxes = seq(10, 440, by=10)
+
+test_error = rep(0, length(naxes))
+for (j in 1:length(naxes)){
+  sum = 0
+  for (i in c(1:10)){
+    train_subset = nacont[which(set!=i), c(1,2:naxes[j]+1)]
+    test_subset = nacont[which(set==i), c(1,2:naxes[j]+1)]
+    train <- multinom(contID~., data = train_subset,MaxNWts=1500,maxit = 200)
+    test <- predict(train,newdata = test_subset)
+    tab <- table(test, test_subset[,1])
+    
+    error = 1-round((sum(diag(tab))/sum(tab)),2)
+
+    sum = sum+error
+  }
+  test_error[j] = sum/10
+}
+# plot(naxes, test_error, col = "red",log="x",type = 'b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+
+
+naxes2 = seq(25, 45, by=1)
+test_error2 = rep(0, length(naxes2))
+for (j in 1:length(naxes2)){
+  sum = 0
+  for (i in c(1:10)){
+    train_subset = nacont[which(set!=i), c(1,2:naxes2[j]+1)]
+    test_subset = nacont[which(set==i), c(1,2:naxes2[j]+1)]
+    train <- multinom(contID~., data = train_subset,MaxNWts=1500,maxit = 200)
+    test <- predict(train,newdata = test_subset)
+    tab <- table(test, test_subset[,1])
+    
+    error = 1-round((sum(diag(tab))/sum(tab)),2)
+    
+    sum = sum+error
+  }
+  test_error2[j] = sum/10
+}
+# plot(naxes2, test_error2, col = "red",log="x",type='b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+
+
+```
+
+```{r,fig.align='center'}
+plot(naxes, test_error, col = "red",log="x",type = 'b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+```
+
+```{r,fig.align='center'}
+plot(naxes2, test_error2, col = "red",log="x",type='b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+```
+
+
+```{r}
+
+naxes2[which.min(test_error2)]
+
+```
+In this part, we use the confusion matrix to calculate the error, and for the first plot, where we have all the principle components and their corresponding mean error, we can see that we obtain the lowest error within 3 sub sections; the first one is between (20,50), the second one in (100,200)and the last on is within the interval (300,500). \
+Clearly , the goal is to use the minimum number of the principle components to achieve the lowest possible error rate, hence, we will only work within the interval of (20,50). \
+By working in this interval, we mean that we calculate the mean error and later figure out how many number of principle components will give the min error. \
+After the computations, and also from the error plot, we decide to keep the first 31 principal components. 
+
+
+### (d)
+```{r}
+library("nnet")
+reg = multinom(NAcont$contID~pca$x[,1:51],CV = TRUE, MaxNWts = 1500, maxit = 200)
+#xtabs(~predict(reg)+NAcont$contID, data = NAcont)
+tb<-table(predict(reg), NAcont$contID)
+error_final = 1-round((sum(diag(tb))/sum(tb)),2)
+print(error_final)
+```
+By using the first 31 principal components, we managed to achieve an error rate of 0.02.
+
+
+
+## 3. Linear discriminant analysis
+### (a)
+
+LDA- linear discriminant analysis uses both x and y axes to project the data onto a 1-D graph in 2 ways using the linear discriminant function :\
+
+1. It uses the mean values of the classes and maximizes the distance between them.\
+2. It uses variation minimization in both the classes for separation.\
+
+If using the mean values linear discriminant analysis algorithm method the then the average values are deduced and used while the variations within the class itself are minimized. The newly generated axes between data-points separate the 2 classes effectively.\
+
+However, if the distribution’s mean values are shared between the classes, Linear Discriminant Analysis cannot find a new linearly separable axis causing the LDA method to fail which is one of the disadvantages of linear discriminant analysis. In such cases, one will have to use the method of non-linear discriminant analysis to separate the 2 classes during classification.\
+
+LDA works when all the independent/predictor variables are continuous (not categorical) and follow a Normal distribution.
+
+We will see the performance of LDA in classifying our dataset: 
+```{r}
+library(MASS)
+lda_data = cbind(contID = NAcont[,c(1)], pca$x)
+lda_data = data.frame(lda_data)
+
+lda_data[2:ncol(lda_data)] <- scale(lda_data[2:ncol(lda_data)])
+# apply(lda_data[2:ncol(lda_data)], 2, mean)
+# apply(lda_data[2:ncol(lda_data)], 2, sd)
+lda_data = data.frame(lda_data)
+
+contLDA <- lda(contID~.,data = lda_data, tol = 1e-25)
+contLDA.p <- predict(contLDA)$class
+table(contLDA.p, NAcont$contID)
+
+print(contLDA$svd^2 / sum(contLDA$svd^2))
+
+#contLDA
+
+
+```
+The singular values are analogous to the eigenvalues of the Principal Component Analysis, except that LDA does not maximize the variance of a component, instead it maximizes the separability (defined by the between and within-group standard deviation). Thus, the “proportion of trace” is the proportion of between-class variance that is explained by successive discriminant functions. Hence, 98.99% of the between-class variance is explained by the first linear discriminant function. \
+
+
+Now, Calculating the optimal number of PCAs for LDA. 
+```{r, include=FALSE}
+set.seed(3)
+labels = rep (1:10 , each =50)
+set = sample(labels ,494)
+
+pca = prcomp(NAcont[,-c(1)], scale = F)
+nacont = cbind(contID=NAcont[,c(1)], pca$x)
+nacont = data.frame(nacont)
+naxes = seq(10, 440, by=10)
+
+test_error = rep(0, length(naxes))
+ for (j in 1:length(naxes)){
+  sum = 0
+   for (i in c(1:10)){
+     train_subset = lda_data[which(set!=i), c(1,2:naxes[j]+1)]
+     test_subset = lda_data[which(set==i), c(1,2:naxes[j]+1)]
+     train <- lda(contID~., data = train_subset)
+     test <- predict(train,newdata = test_subset)$class
+     tab <- table(test, test_subset[,1])
+     #print(tab)
+     error = 1-round((sum(diag(tab))/sum(tab)),2)
+     #print(error)
+     sum = sum+error
+   }
+   test_error[j] = sum/10
+ }
+ # plot(naxes, test_error, col = "red",log="x",type = 'b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+```
+
+```{r, fig.align='center'}
+plot(naxes, test_error, col = "red",log="x",type = 'b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+```
+
+```{r}
+```
+Choosing the interval (90,115) to calculate the optimal number of components
+
+```{r,include=FALSE}
+
+naxes2 = seq(90, 115, by=1)
+test_error2 = rep(0, length(naxes2))
+for (j in 1:length(naxes2)){
+  sum = 0
+  for (i in c(1:10)){
+    train_subset = lda_data[which(set!=i), c(1,2:naxes2[j]+1)]
+    test_subset = lda_data[which(set==i), c(1,2:naxes2[j]+1)]
+    train <- lda(contID~., data = train_subset)
+    test <- predict(train,newdata = test_subset)$class
+    tab <- table(test, test_subset[,1])
+    #print(tab)
+    error = 1-round((sum(diag(tab))/sum(tab)),2)
+    #print(error)
+    sum = sum+error
+  }
+  test_error2[j] = sum/10
+}
+# plot(naxes2, test_error2, col = "red",log="x",type='b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+
+naxes2[which.min(test_error2)]
+```
+```{r,}
+plot(naxes2, test_error2, col = "red",log="x",type='b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+```
+From our code, we conclude that the optimal number of principal components is 107 with error of 0.04, which can be considered a good classifier. \
+And below, we have the demonstration of the confusion matrix:
+```{r, fig.align='center'}
+reg = lda(NAcont$contID~pca$x[,1:107])
+#xtabs(~predict(reg)+NAcont$contID, data = NAcont)
+table(predict(reg)$class, NAcont$contID)
+print(reg$svd^2 / sum(reg$svd^2))
+```
+
+
+## 4. Naive Bayes
+### (a)
+** Since there is a problem with loading naiveBayes function, we comment these code. ** \
+Naïve Bayes is a classification method based on Bayes’ theorem that derives the probability of the given feature vector being associated with a label. Naïve Bayes has a naive assumption of conditional independence for every feature, which means that the algorithm expects the features to be independent which not always is the case. we will discover if this is the case in our data.
+```{r}
+# library(naivebayes)
+# bayes_data <- cbind(contID = NAcont[,c(1)], pca$x)
+# bayes_data <- data.frame(bayes_data)
+# bayes <- naiveBayes(contID~.,data = bayes_data)
+# table(predict(bayes,bayes_data), bayes_data[,1])
+
+```
+
+```{r}
+# set.seed(3)
+# labels = rep (1:10 , each =50)
+# set = sample(labels ,494)
+# 
+# naxes = seq(10, 440, by=10)
+# 
+#  test_error = rep(0, length(naxes))
+#  for (j in 1:length(naxes)){
+#    sum = 0
+#    for (i in c(1:10)){
+#      train_subset = bayes_data[which(set!=i), c(1,2:naxes[j]+1)]
+#      test_subset = bayes_data[which(set==i), c(1,2:naxes[j]+1)]
+#      train <- lda(contID~., data = train_subset)
+#      test <- predict(train,newdata = test_subset)$class
+#      tab <- table(test, test_subset[,1])
+#      #print(tab)
+#      error = 1-round((sum(diag(tab))/sum(tab)),2)
+# #     print(error)
+#      sum = sum+error
+#    }
+#    test_error[j] = sum/10
+#  }
+#  plot(naxes, test_error, col = "red",log="x",type = 'b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+# 
+# 
+# naxes2 = seq(90, 110, by=1)
+# test_error2 = rep(0, length(naxes2))
+# for (j in 1:length(naxes2)){
+#   sum = 0
+#   for (i in c(1:10)){
+#     train_subset = bayes_data[which(set!=i), c(1,2:naxes2[j]+1)]
+#     test_subset = bayes_data[which(set==i), c(1,2:naxes2[j]+1)]
+#     train <- lda(contID~., data = train_subset)
+#     test <- predict(train,newdata = test_subset)$class
+#     tab <- table(test, test_subset[,1])
+#     #print(tab)
+#     error = 1-round((sum(diag(tab))/sum(tab)),2)
+#     #print(error)
+#     sum = sum+error
+#   }
+#   test_error2[j] = sum/10
+# }
+# plot(naxes2, test_error2, col = "red",log="x",type='b',xlab="Number of Principle Components",ylab="Mean Error",main="Error Vs. the number of principle components")
+# 
+
+```
+```{r}
+# naxes2[which.min(test_error2)]
+```
+
+```{r}
+# bayesData = cbind(contID = NAcont[,c(1)], pca$x[,1:107])
+# bayesData = data.frame(bayesData)
+# # nacont = cbind(contID=NAcont[,c(1)], pca$x)
+# bayes <-naiveBayes(contID~., data = bayesData)
+# tab<-table(predict(bayes,bayesData), bayesData[,1])
+# mean(predict(bayes,bayesData) == bayesData[,1])
+# error = 1-round((sum(diag(tab))/sum(tab)),2)
+# print(error)
+```
+As can bee seen the error is around 0.8, which is too high. meaning that the features that we have are correlated. 
+
+## Conclusion 
+
+In the beginning of each section, we talked about how each classifier works, and now we want to compare the result we obtained using the genetic data :  \
+
+1. Multinomial classifier :  using the first 31 principal components , we got an error of 0.02
+   However, if we switch to 50 principal components the error is zero \
+2. LDA : using the first 107 principal components , we got an error of 0.04 \
+3. Naive Bayes : Using the first 107 principal components , we got an error of 0.8 \
+
+Since we achieved better results with LDA rather than the Naive Bayes classifier , we can say that there is correlation among the features, which makes sense in real life. People with similar DNA have correlations between their DNA. \
+
+Also, we achieve a better result with multinom rather than LDA, however, the difference was not that great. logistic regression is often more robust that LDA, since it does not use any assumption, like normal distribution, on the predictors. Such an assumption is rarely fulfilled.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
