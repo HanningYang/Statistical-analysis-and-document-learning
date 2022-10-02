@@ -1,0 +1,333 @@
+---
+title: "TP2: Principal Components Regression in Genetics"
+author: "Hanning Yang, Niloufar Zarghampour, Aurele Cuny, Michael Tchamwa Bamini"
+output: html_document
+---
+## 1 Data
+```{r}
+NAm2 = read.table("NAm2.txt",header=TRUE)
+names = unique ( NAm2$Pop )
+npop = length ( names )
+coord = unique ( NAm2 [ ,c("Pop","long","lat" )]) 
+colPalette =rep (c(" black","red","cyan","orange","brown","blue","pink",
+"purple","darkgreen") ,3)
+pch = rep(c(16 ,15 ,25) , each =9)
+plot ( coord [,c("long","lat")] , pch = pch , col = colPalette , asp =1)
+# asp allows to have the correct ratio between axis longitude
+# and latitude , thus the map is not deformed
+legend ("bottomleft",legend =names , col = colPalette , lty = -1 ,
+pch = pch , cex =0.75 , ncol =2 , lwd =2)
+library ( maps ); map ("world",add =T )
+```
+```{r}
+```
+This is to delete the duplicate population and show population distribution geograpfically on the map. 
+
+
+## 2 Regression
+```{r}
+NAaux = NAm2[,-c(1:7)]
+regression = lm(NAaux$long~., data = NAaux)
+#summary(regression)
+
+```
+We can see from the result, there is no residual degrees of freedom. This regression is not working, we have to use PCA to reduce the dimension of the data set.
+
+## 3 PCA
+### (a) 
+The central idea of principal component analysis (PCA) is to reduce the dimensionality of a data set consisting of a large number of interrelated variables, while retaining as much as possible of the variation present in the data set. This is achieved by transforming to a new set of variables, the principal components (PCs), which are uncorrelated, and which are ordered so that the first few retain most of the variation present in all of the original variables.\
+It can be divided into several steps as following: \
+1. Take features of the dataset.\
+2. Normalisation of Your Dataset.\
+3. Calculate Covariance Matrix.\
+4. Calculate EigenValues.\
+5. Calculate Eigenvectors.\
+6. Sort and Select.
+
+### (b)
+```{r}
+pcaNAm2 = prcomp(NAm2[,-c(1:8)], scale = F)
+PCANAm2 = prcomp(NAm2[,-c(1:8)], scale = T)
+```
+We don't need to use the argument scale bacause the genetic marker only has two values which are 0 and 1. When we have different values in the interval, we are supposed to use scale.
+
+### (c)
+
+```{r}
+caxes =c(1 ,2)
+plot ( pcaNAm2$x[, caxes ] ,col ="white")
+for ( i in 1: npop )
+{
+print ( names [i ])
+lines ( pcaNAm2 $x [ which ( NAm2 [ ,3]== names [ i ]) , caxes ] , type ="p",
+col = colPalette [i ], pch = pch [ i ])
+legend ("top",legend =names , col = colPalette , lty = -1 , pch = pch , cex =0.75 , ncol =3 , lwd =2)
+}
+
+caxes =c(1 ,2)
+plot ( PCANAm2$x[, caxes ] ,col ="white")
+for ( i in 1: npop )
+{
+print ( names [i ])
+lines ( PCANAm2 $x [ which ( NAm2 [ ,3]== names [ i ]) , caxes ] , type ="p",
+col = colPalette [i ], pch = pch [ i ])
+legend ("top",legend =names , col = colPalette , lty = -1 , pch = pch , cex =0.75 , ncol =3 , lwd =2)
+}
+```
+As we can from the comparison, the result is better when we put scale false. Since there is a clear population distinction at the bottom.
+
+```{r}
+cumsum(pcaNAm2$sdev^2 / sum(pcaNAm2$sdev^2)*100)[1]
+cumsum(pcaNAm2$sdev^2 / sum(pcaNAm2$sdev^2)*100)[2]-cumsum(pcaNAm2$sdev^2 / sum(pcaNAm2$sdev^2)*100)[1]
+cumsum(pcaNAm2$sdev^2 / sum(pcaNAm2$sdev^2)*100)[2]
+```
+3.57% of variance is captured by the first two principal components. There are two principal components we would like to keep, which are Ache and Surui because they have clear clusters in the figure above.
+
+## 4 PCR (Principal components regression)
+```{r}
+
+lmlat = lm(NAm2$lat~pcaNAm2$x[,1:250])
+lmlong = lm(NAm2$long~pcaNAm2$x[,1:250])
+
+#summary(lmlat)
+#summary(lmlong)
+
+plot ( lmlong$fitted.values , lmlat$fitted.values , col ="white", asp =1)
+for ( i in 1: npop )
+{
+print ( names [i ])
+lines (lmlong$fitted.values[which(NAm2[ ,3]== names[i])] ,
+lmlat$fitted.value[ which(NAm2[ ,3]== names [i])] ,
+type ="p", col = colPalette [ i], pch = pch [i ])
+}
+legend ("bottomleft",legend =names , col = colPalette , lty = -1 ,
+pch = pch , cex =.75 , ncol =3 , lwd =2)
+map ("world",add = T)
+
+```
+```{r}
+```
+Even though the map illustrates too optimistically, this approach will not work with individuals outside the database. The reason being is that, while PC1 contains the most variance, meaning contains the most useful information, pc2 ( pc3 and so on) contains what could be considered as "noise". Hence, with a different database which has a different noise pattern than the one we already have , we will not achieve these results. Which is why we have to the next part, the cross validation, to test our model with random dataset. 
+
+```{r}
+library("fields")
+pred_lat = predict(lmlat)
+pred_long = predict(lmlong)
+
+x1 = matrix(NAm2$long, NAm2$lat)
+x2 = matrix(pred_long, pred_lat)
+dists = rdist.earth.vec(x1, x2, miles=F)
+print(dists)
+
+```
+## 5 PCR and cross-validation
+### (a)
+K-fold cross validation is one way to improve over the holdout method. The data set is divided into k subsets, and the holdout method is repeated k times. Each time, one of the k subsets is used as the test set and the other k-1 subsets are put together to form a training set. Then the average error across all k trials is computed. The advantage of this method is that it matters less how the data gets divided. Every data point gets to be in a test set exactly once, and gets to be in a training set k-1 times. The variance of the resulting estimate is reduced as k is increased. The disadvantage of this method is that the training algorithm has to be rerun from scratch k times, which means it takes k times as much computation to make an evaluation. A variant of this method is to randomly divide the data into a test and training set k different times. The advantage of doing this is that you can independently choose how large each test set is and how many trials you average over.\
+Here, we create the 10 labels we need for the validation set, basically we need the function rep , to generate these labels for the number of data that we have so we can assign (randomly) each datapoint to a label, which represents one of the 10 folds.
+```{r}
+N = dim(NAm2)[1]
+labels = rep(1:10, each=N)
+set = sample(labels, nrow(NAm2))
+
+```
+
+### (b) 1.
+```{r}
+naxes = 4
+predictedCoord <- data.frame(matrix(ncol = 2, nrow = nrow(NAm2)))
+colnames(predictedCoord)<-c("longitude","latitude")
+
+```
+
+### (b) 2.
+```{r}
+## taking the datapoints that are not in the validation set 1 
+subset1 = c()
+for (i in 1:(nrow(NAm2))) {
+  if (set[i] != 1) {
+    subset1[i] <- pcaNAm2$x[i]
+  }
+}
+## keeping the long and the lat col along with the genes 
+NAm=NAm2[,-c(1:6)]
+## omitting the long and lat and keeping the genes of each individuals 
+pcr_model = prcomp(NAm[,-c(1:8)], scale = T)
+
+## creating the intended predictors
+
+long_reg = lm(NAm2$long~pcr_model$x[,1:naxes])
+long_pred = predict(long_reg, subset = subset1) 
+
+lat_reg = lm(NAm$lat~pcr_model$x[,1:naxes])
+lat_pred = predict(lat_reg, subest = subset1)
+
+
+
+```
+
+### (b) 3.
+Here, we basically do the same as the last part but for datapoints belonging to validation set 1, and also update the dataframe dedicated for the predictors long and lat
+
+```{r}
+subset2 = c()
+for (i in 1:(nrow(NAm2))){
+  if (set[i] == 1) {
+    subset2[i] <- pcaNAm2$x[i]
+  }
+}
+## updated predictors that belong to the validation set 1 
+long_pred2 = predict(long_reg, subset = subset2)
+lat_pred2 = predict(lat_reg, subset = subset2)
+
+for (i in 1:(nrow(NAm2))){
+  predictedCoord[i,1] <- long_pred2[i]
+  predictedCoord[i,2] <- lat_pred2[i]
+}
+
+```
+### (b) 4.
+```{r}
+for (k in 2:10) {
+  subset3 = c()
+  for (i in 1: nrow(NAm2)){
+    if (set[i] == k) {
+      subset3[i] <- pcaNAm2$x[i]
+    }
+  }
+
+  long_pred3 = predict(long_reg, subset = subset3)
+  lat_pred3 = predict(lat_reg, subset = subset3)
+
+  for (i in 1:nrow(NAm2)){
+    predictedCoord[i,1] = long_pred2[i]
+    predictedCoord[i,2] = lat_pred2[i]
+  }
+}
+
+# prediction error 
+x1 = matrix(NAm2$long, NAm2$lat)
+x2 = matrix(long_reg$fitted.values, lat_reg$fitted.values)
+
+#rdist.earth(x1, x2, miles=F)
+## we comment this line out because the size of the file got too big to upload
+
+```
+
+### (c) 
+
+```{r}
+#The function metric is defined, since we need to introduce the training error as well as the validation error
+## ind : is an indicator to show whether we are calculation the validation error or the training error 
+
+metric = function(lmLong, lmLat, X, ind) {
+  df1 = data.frame(NAm2[ind, "long"], NAm2[ind, "lat"])
+  df2 = data.frame(predict.lm(lmLong, X), predict.lm(lmLat, X))
+
+  total = 0
+  for (i in 1:length(NAm2["long"])) {
+    total = total + rdist.earth(df1[i,], df2[i,], miles=F)
+  }
+  total = total / length(NAm2["long"])
+  #total
+}
+
+N = dim(NAm2)[1]
+labels = rep (1:10 , each=N)
+set = sample (labels, N)
+seq1 = seq(2, 440, by=10)
+
+training_error = seq(2,440,by=10)
+validation_error = seq(2,440,by=10)
+
+for (i in 1:length(training_error)) {
+  training_error[i] = 0
+  validation_error[i] = 0
+  for (j in 1:10) {
+    naxes = seq1[i]
+    ind = which(set != j)
+    X = pcaNAm2$x[ind, 1:naxes]
+    df1 = data.frame(X)
+    df1["long"] = NAm2[ind, "long"]
+    lmlong = lm(long ~ ., df1)
+    
+    df2 = data.frame(X)
+    df2["lat"] = NAm2[ind, "lat"]
+    lmlat = lm(lat ~ ., df2)
+    
+    training_error[i] = training_error[i] + metric(lmlong, lmlat, data.frame(X), ind)
+    ind = which(set==j)
+    validation_error[i] = validation_error[i] + metric(lmlong, lmlat, data.frame(pcaNAm2$x[ind, 1:naxes]), ind)
+  }
+  validation_error[i] = validation_error[i]/10
+  training_error[i] = training_error[i]/10
+}
+
+plot(seq(2,440,by=10), training_error, col="red", type = "b",main ="Error as a function of #PC", ylab = "Mean Error (KM)", xlab = "Number of principle components")
+lines(seq(2,440,by=10), validation_error, type = "b",col="blue")
+legend("topright", c("training","validation"), fill=c("red","blue"))
+
+```
+
+### (d)
+
+```{r}
+## plotting the map of the predictors
+##for different num of axes , we create a different data frame 
+predictedCoord1 <- data.frame(matrix(ncol = 2, nrow = nrow(NAm2)))
+colnames(predictedCoord)<-c("longitude","latitude")
+
+## making the regression according to the new num of pca axes
+
+seq_set = seq(2, 440, by=10)
+long_reg = lm(NAm$long~pcaNAm2$x[,seq_set])
+lat_reg = lm(NAm$lat~pcaNAm2$x[,seq_set])
+
+## repeating the section (b) 
+
+for (k in 2:10) {
+  subset2 = c()
+  for (i in 1: nrow(NAm2)){
+    if (set[i] == k) {
+      subset2[i] <- pcaNAm2$x[i]
+    }
+  }
+
+  long_pred4 = predict(long_reg, subset = subset2)
+  lat_pred4 = predict(lat_reg, subset = subset2)
+
+  for (i in 1: nrow(NAm2)){
+    predictedCoord1[i,1] = long_pred2[i]
+    predictedCoord1[i,2] = lat_pred2[i]
+  }
+}
+
+# prediction error
+x1 = matrix(NAm2$long, NAm2$lat)
+x2 = matrix(long_reg$fitted.values, lat_reg$fitted.values)
+rdist.earth(x1, x2, miles=F)
+
+plot(long_reg$fitted.values, lat_reg$fitted.values, col = "white")
+for (i in 1:npop) {
+  print(names[i])
+  lines(long_reg$fitted.values[which(NAm2[,3]==names[i])],
+        lat_reg$fitted.values[which(NAm2[,3]==names[i])],type="p",
+                              col=colPalette[i], pch=pch[i])
+}
+legend("bottomleft", legend=names, col=colPalette, lty=-1, pch=pch, cex=.75, ncol=3, lwd=2)
+map("world", add=T)
+
+```
+```{r}
+```
+From the error plot we generated in question (c), we would like to keep around 50 principal components in the model in order to minimize both of training and validation error.
+
+### (6) Conclusion 
+
+
+So far, with the help of PCR, we were able to reduce the dimension of the predictors in order to optimize the training error and the prediction error using the $10$-fold cross validation. To summarize, this purpose of this regression was to predict the geographical origin of each individual based on their genetic markers. However, based on the summary of the model, the prediction and the training mean distance were still high and did not live up to the expectation. This illustration could also be seen in when we compare the original map and the predicted map. That is, it is quite hard to tell which population is where (even though with pc1 we could say in some extent how they were divided). This may be due to the fact that PCR can easily lead to poor prediction when the response variable is related to principal components with small variance. Basically, in PCR we take into account the high variance but not the correlations, maybe if we added the parts with the highest correlations to our model, we would have got better results.PCR only tends to perform well when the first principal components are enough to explain most of the variation in the predictors.
+
+In this paragraph , we will mention some drawbacks of PCR:
+
+PCR is not a feature selection method because each of the calculated principal components is a linear combination of the original variables. Using principal components instead of the actual features can make it harder to explain what is affecting what.
+
+Another major drawback of PCR is that the directions that best represent each predictor are obtained in an unsupervised way. The dependent variable is not used to identify each principal component direction. This essentially means that it is not certain that the directions found will be the optimal directions to use when making predictions on the dependent variable.
